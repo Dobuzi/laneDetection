@@ -1,0 +1,8 @@
+.vscode/**
+camera_cal/**
+examples/**
+media/**
+output_images/**
+output_videos/**
+test_images/**
+venv/**
