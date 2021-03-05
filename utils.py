@@ -23,7 +23,7 @@ def show_image_list(img_list, img_labels, title, cols=2, fig_size=(15, 15) ,show
     rows = len(img_list)
     cmap = None
     
-    fig, axes = plt.subplots(rows, cols, fig_size=fig_size)
+    fig, axes = plt.subplots(rows, cols, figsize=fig_size)
 
     for i in range(0, rows):
         for j in range(0, cols):
@@ -42,8 +42,17 @@ def show_image_list(img_list, img_labels, title, cols=2, fig_size=(15, 15) ,show
             ax.imshow(img, cmap=cmap)
             ax.set_title(img_name)
     
-    fig.subtitle(title, fontsize=12, fontweight='bold', y=1)
+    fig.suptitle(title, fontsize=12, fontweight='bold', y=1)
     fig.tight_layout()
     plt.show()
 
+    return
+
+def compare_2_images(images, titles):
+    fig, ax = plt.subplots(1, 2, figsize=(10, 7))
+    for i, (image, title) in enumerate(zip(images, titles)):
+        ax[i].imshow(image)
+        ax[i].axis("off")
+        ax[i].set_title(title)
+    plt.show()
     return
