@@ -138,3 +138,30 @@ class LaneDetector():
         hls_img_w_y[(hls_img_w == 1) | (hls_img_y == 1)] = 1
 
         return hls_img_w_y
+    
+    def abs_sobel(self, gray_img, x_dir=True, kernel_size=3, threshold=(0, 255)):
+        sobel = cv2.Sobel(gray_img, cv2.CV_64F, int(x_dir), int(not x_dir), ksize=kernel_size)
+        
+        sobel_abs = np.absolute(sobel)
+        sobel_scaled = np.uint8(255 * sobel / np.max(sobel_abs))
+
+        gradient_mask = np.zeros_like(sobel_scaled)
+        gradient_mask[(threshold[0] <= sobel_scaled) & (sobel_scaled <= threshold[1])] = 1
+
+        return gradient_mask
+
+    def test_sobel_filter(self, gray_img, x_dir=True):
+        kernel_sizes = [3, 7, 11, 15]
+        thresholds = [(20, 120), (50, 150), (80, 200)]
+        sobel_imgs = []
+        sobel_labels = []
+        for k in kernel_sizes:
+            sobel_img = []
+            sobel_label = []
+            for th in thresholds:
+                sobel_img.append(self.abs_sobel(gray_img, kernel_size=k, x_dir=x_dir, threshold=th))
+                sobel_label.append(f'{k}x{k} - Threshold {th}')
+            sobel_imgs.append(sobel_img)
+            sobel_labels.append(sobel_label)
+        
+        return np.asarray(sobel_imgs), np.asarray(sobel_labels)
