@@ -23,7 +23,11 @@ class LaneDetector():
         self.undist_test_imgs_names = [f'undistorted_{img_name}' for img_name in self.test_imgs_names]
         self.test_imgs = [self.load_image(img_path) for img_path in self.test_imgs_paths]
         self.undist_test_imgs = [self.undistort_image(img) for img in self.test_imgs]
+
         self.undist_test_img = self.undist_test_imgs[n_sample]
+        self.color_spaces, self.color_spaces_labels = self.make_color_spaces(self.undist_test_img)
+        self.hls_white_yellow_img = self.compute_hls_white_yellow_binary(self.undist_test_img)
+
     # show corners in calibration image
     def show_corners_on_chess_board(self, n=2):
         # show a sample image of calibration board
@@ -115,3 +119,22 @@ class LaneDetector():
         color_spaces_labels = np.concatenate((rgb_labels, hls_labels, hsv_labels, lab_labels))
 
         return color_spaces, color_spaces_labels
+    
+    def compute_hls_white_yellow_binary(self, img):
+        hls_img = self.to_hls(img)
+        hue, lightness, saturation = hls_img[:,:,0], hls_img[:,:,1], hls_img[:,:,2]
+
+        hls_img_w = np.zeros_like(hls_img[:,:,0])
+        hls_img_w[(0 <= hue) & (hue <= 255) & \
+                  (200 <= lightness) & (lightness <= 255) & \
+                  (0 <= saturation) & (saturation <= 255)] = 1
+
+        hls_img_y = np.zeros_like(hls_img[:,:,0])
+        hls_img_y[(15 <= hue) & (hue <= 35) & \
+                  (30 <= lightness) & (lightness <= 204) & \
+                  (115 <= saturation) & (saturation <= 255)] = 1
+        
+        hls_img_w_y = np.zeros_like(hls_img[:,:,0])
+        hls_img_w_y[(hls_img_w == 1) | (hls_img_y == 1)] = 1
+
+        return hls_img_w_y

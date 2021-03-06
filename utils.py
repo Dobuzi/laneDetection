@@ -30,10 +30,10 @@ def show_image_list(img_list, img_labels, title, cols=2, fig_size=(15, 15) ,show
 
     return
 
-def compare_2_images(images, titles):
+def compare_2_images(images, titles, cmap=[None, 'gray']):
     fig, ax = plt.subplots(1, 2, figsize=(10, 7))
     for i, (image, title) in enumerate(zip(images, titles)):
-        ax[i].imshow(image)
+        ax[i].imshow(image, cmap=cmap[i])
         ax[i].axis("off")
         ax[i].set_title(title)
     plt.show()
