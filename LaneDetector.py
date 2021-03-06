@@ -6,7 +6,7 @@ from importlib import reload
 from utils import *
 
 class LaneDetector():
-    def __init__(self, calibration_dir = "camera_cal", test_imgs_dir = "test_images", output_imgs_dir = "output_images", output_videos_dir = "output_videos", cx=9, cy=6):
+    def __init__(self, calibration_dir = "camera_cal", test_imgs_dir = "test_images", output_imgs_dir = "output_images", output_videos_dir = "output_videos", cx=9, cy=6, n_sample=0):
         self.calibration_dir = calibration_dir
         self.test_imgs_dir = test_imgs_dir
         self.output_imgs_dir = output_imgs_dir
@@ -21,17 +21,15 @@ class LaneDetector():
 
         self.test_imgs_names = [img_path.split("/")[-1].split(".")[0] for img_path in self.test_imgs_paths]
         self.undist_test_imgs_names = [f'undistorted_{img_name}' for img_name in self.test_imgs_names]
-        self.test_imgs = [load_image(img_path) for img_path in self.test_imgs_paths]
-        self.undist_test_imgs = [self.undistort_imge(img) for img in self.test_imgs]
-
-        
-        
+        self.test_imgs = [self.load_image(img_path) for img_path in self.test_imgs_paths]
+        self.undist_test_imgs = [self.undistort_image(img) for img in self.test_imgs]
+        self.undist_test_img = self.undist_test_imgs[n_sample]
     # show corners in calibration image
     def show_corners_on_chess_board(self, n=2):
         # show a sample image of calibration board
         cal_img_path = self.cal_imgs_paths[n]
-        cal_img = load_image(cal_img_path)
-        gray_image = to_grayscale(cal_img)
+        cal_img = self.load_image(cal_img_path)
+        gray_image = self.to_grayscale(cal_img)
         
         # find corners
         ret, corners = cv2.findChessboardCorners(gray_image, (self.cx, self.cy), None)
@@ -51,8 +49,8 @@ class LaneDetector():
         obj_pt[:, :2] = np.mgrid[0:self.cx, 0:self.cy].T.reshape(-1, 2)
 
         for img_path in self.cal_imgs_paths:
-            img = load_image(img_path)
-            gray_image = to_grayscale(img)
+            img = self.load_image(img_path)
+            gray_image = self.to_grayscale(img)
             ret, corners = cv2.findChessboardCorners(gray_image, (self.cx, self.cy), None)
 
             if ret:
@@ -61,17 +59,59 @@ class LaneDetector():
         
         return obj_pts, img_pts
 
-    def undistort_imge(self, img):
-        gray_image = to_grayscale(img).shape[::-1]
+    def undistort_image(self, img):
+        gray_image = self.to_grayscale(img).shape[::-1]
         ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(self.obj_pts, self.img_pts, gray_image, None, None)
         undist = cv2.undistort(img, mtx, dist, None, mtx)
         return undist
 
-    def threshold_img(self, img, channel, threshold=(0, 255)):
+    def mask_image(self, img, channel, threshold=(0, 255)):
         img_channel = img[:, :, channel]
         if threshold is None:
             return img_channel
         
         mask = np.zeros_like(img_channel)
-        mask[ (threshold[0] <= img_channel) and (threshold[1] >= img_channel) ] = 1
+        mask[threshold[0] <= img_channel <= threshold[1]] = 1
         return mask
+    
+    def to_grayscale(self, img):
+        return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    def to_hsv(self, img):
+        return cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+
+    def to_hls(self, img):
+        return cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+
+    def to_lab(self, img):
+        return cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+
+    def load_image(self, path, to_rgb=True):
+        img = cv2.imread(path)
+        return img if not to_rgb else cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    def filter_3_channel(self, img):
+        return [self.mask_image(img, 0, threshold=None),
+                 self.mask_image(img, 1, threshold=None),
+                 self.mask_image(img, 2, threshold=None)]
+
+    def make_color_spaces(self, img):
+        rgb_filter = np.asarray([self.filter_3_channel(img)])
+        rgb_labels = np.asarray([["Red", "Green", "Blue"]])
+
+        hls_img = self.to_hls(img)
+        hls_filter = np.asarray([self.filter_3_channel(hls_img)])
+        hls_labels = np.asarray([["Hue", "Lightness", "Saturation"]])
+
+        hsv_img = self.to_hsv(img)
+        hsv_filter = np.asarray([self.filter_3_channel(hsv_img)])
+        hsv_labels = np.asarray([["Hue", "Saturation", "Value"]])
+
+        lab_img = self.to_lab(img)
+        lab_filter = np.asarray([self.filter_3_channel(lab_img)])
+        lab_labels = np.asarray([["Lightness", "Green-Red (A)", "Blue-Yellow (B)"]])
+
+        color_spaces = np.concatenate((rgb_filter, hls_filter, hsv_filter, lab_filter))
+        color_spaces_labels = np.concatenate((rgb_labels, hls_labels, hsv_labels, lab_labels))
+
+        return color_spaces, color_spaces_labels

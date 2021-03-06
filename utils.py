@@ -1,23 +1,5 @@
 import numpy as np
-import cv2
-import glob
 import matplotlib.pyplot as plt
-
-def to_grayscale(img):
-    return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-
-def to_hsv(img):
-    return cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-
-def to_hls(img):
-    return cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
-
-def to_lab(img):
-    return cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
-
-def load_image(path, to_rgb=True):
-    img = cv2.imread(path)
-    return img if not to_rgb else cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 def show_image_list(img_list, img_labels, title, cols=2, fig_size=(15, 15) ,show_ticks=True):
     rows = len(img_list)
