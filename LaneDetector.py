@@ -28,6 +28,11 @@ class LaneDetector():
         self.color_spaces, self.color_spaces_labels = self.make_color_spaces(self.undist_test_img)
         self.hls_white_yellow_img = self.compute_hls_white_yellow_binary(self.undist_test_img)
 
+        self.undist_test_img_gray = self.to_lab(self.undist_test_img)[:,:,0]
+        self.sobel_x_best = self.abs_sobel(kernel_size=15, threshold=(20, 120))
+        self.sobel_y_best = self.abs_sobel(x_dir=False, kernel_size=15, threshold=(20, 120))
+        self.sobel_xy_best = self.mag_sobel(kernel_size=15, threshold=(80, 200))
+
     # show corners in calibration image
     def show_corners_on_chess_board(self, n=2):
         # show a sample image of calibration board
@@ -139,8 +144,8 @@ class LaneDetector():
 
         return hls_img_w_y
     
-    def abs_sobel(self, gray_img, x_dir=True, kernel_size=3, threshold=(0, 255)):
-        sobel = cv2.Sobel(gray_img, cv2.CV_64F, int(x_dir), int(not x_dir), ksize=kernel_size)
+    def abs_sobel(self, x_dir=True, kernel_size=3, threshold=(0, 255)):
+        sobel = cv2.Sobel(self.undist_test_img_gray, cv2.CV_64F, int(x_dir), int(not x_dir), ksize=kernel_size)
         
         sobel_abs = np.absolute(sobel)
         sobel_scaled = np.uint8(255 * sobel / np.max(sobel_abs))
@@ -149,8 +154,20 @@ class LaneDetector():
         gradient_mask[(threshold[0] <= sobel_scaled) & (sobel_scaled <= threshold[1])] = 1
 
         return gradient_mask
+    
+    def mag_sobel(self, kernel_size=3, threshold=(0, 255)):
+        sobel_x = cv2.Sobel(self.undist_test_img_gray, cv2.CV_64F, 1, 0, ksize=kernel_size)
+        sobel_y = cv2.Sobel(self.undist_test_img_gray, cv2.CV_64F, 0, 1, ksize=kernel_size)
 
-    def test_sobel_filter(self, gray_img, x_dir=True):
+        sobel_xy = np.sqrt(np.square(sobel_x) + np.square(sobel_y))
+        scaled_sobel_xy = np.uint8(255 * sobel_xy / np.max(sobel_xy))
+
+        sobel_xy_bin = np.zeros_like(scaled_sobel_xy)
+        sobel_xy_bin[(scaled_sobel_xy >= threshold[0]) & (scaled_sobel_xy <= threshold[1])] = 1
+
+        return sobel_xy_bin
+
+    def test_sobel_filter(self, callback, x_dir=True):
         kernel_sizes = [3, 7, 11, 15]
         thresholds = [(20, 120), (50, 150), (80, 200)]
         sobel_imgs = []
@@ -159,9 +176,14 @@ class LaneDetector():
             sobel_img = []
             sobel_label = []
             for th in thresholds:
-                sobel_img.append(self.abs_sobel(gray_img, kernel_size=k, x_dir=x_dir, threshold=th))
+                if x_dir is None:
+                    sobel_img.append(callback(kernel_size=k, threshold=th))
+                else:
+                    sobel_img.append(callback(x_dir=x_dir, kernel_size=k, threshold=th))
                 sobel_label.append(f'{k}x{k} - Threshold {th}')
             sobel_imgs.append(sobel_img)
             sobel_labels.append(sobel_label)
         
         return np.asarray(sobel_imgs), np.asarray(sobel_labels)
+
+    

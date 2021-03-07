@@ -37,9 +37,8 @@ if __name__ == '__main__':
     #     ["Undistorted Image", "HLS White Yellow Masked Image"])
 
     # 5. Check Sobel filter parameters
-    # L_img = laneDetector.to_lab(laneDetector.undist_test_img)[:,:,0]
 
-    # sobel_x_imgs, sobel_x_labels = laneDetector.test_sobel_filter(L_img)
+    # sobel_x_imgs, sobel_x_labels = laneDetector.test_sobel_filter(laneDetector.abs_sobel)
     # show_image_list(
     #     sobel_x_imgs,
     #     sobel_x_labels,
@@ -47,8 +46,8 @@ if __name__ == '__main__':
     #     cols=3,
     #     show_ticks=False
     # )
-
-    # sobel_y_imgs, sobel_y_labels = laneDetector.test_sobel_filter(L_img, x_dir=False)
+    
+    # sobel_y_imgs, sobel_y_labels = laneDetector.test_sobel_filter(laneDetector.abs_sobel, x_dir=False)
     # show_image_list(
     #     sobel_y_imgs,
     #     sobel_y_labels,
@@ -57,3 +56,13 @@ if __name__ == '__main__':
     #     fig_size=(10, 10),
     #     show_ticks=False
     # )
+
+    sobel_xy_imgs, sobel_xy_labels = laneDetector.test_sobel_filter(laneDetector.mag_sobel, x_dir=None)
+    show_image_list(
+        sobel_xy_imgs,
+        sobel_xy_labels,
+        "Sobel XY magnitude masks",
+        cols=3,
+        fig_size=(10, 10),
+        show_ticks=False
+    )
