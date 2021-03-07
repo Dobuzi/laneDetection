@@ -39,30 +39,16 @@ if __name__ == '__main__':
     # 5. Check Sobel filter parameters
 
     # sobel_x_imgs, sobel_x_labels = laneDetector.test_sobel_filter(laneDetector.abs_sobel)
-    # show_image_list(
-    #     sobel_x_imgs,
-    #     sobel_x_labels,
-    #     "Sobel X-dir masks",
-    #     cols=3,
-    #     show_ticks=False
-    # )
+    # show_image_list(sobel_x_imgs, sobel_x_labels, "Sobel X-dir masks", cols=3, show_ticks=False)
     
     # sobel_y_imgs, sobel_y_labels = laneDetector.test_sobel_filter(laneDetector.abs_sobel, x_dir=False)
-    # show_image_list(
-    #     sobel_y_imgs,
-    #     sobel_y_labels,
-    #     "Sobel Y-dir masks",
-    #     cols=3,
-    #     fig_size=(10, 10),
-    #     show_ticks=False
-    # )
+    # show_image_list(sobel_y_imgs, sobel_y_labels, "Sobel Y-dir masks", cols=3, fig_size=(10, 10), show_ticks=False)
 
-    sobel_xy_imgs, sobel_xy_labels = laneDetector.test_sobel_filter(laneDetector.mag_sobel, x_dir=None)
-    show_image_list(
-        sobel_xy_imgs,
-        sobel_xy_labels,
-        "Sobel XY magnitude masks",
-        cols=3,
-        fig_size=(10, 10),
-        show_ticks=False
-    )
+    # sobel_xy_imgs, sobel_xy_labels = laneDetector.test_sobel_filter(laneDetector.mag_sobel, x_dir=None)
+    # show_image_list(sobel_xy_imgs, sobel_xy_labels, "Sobel XY magnitude masks", cols=3, fig_size=(10, 10), show_ticks=False)
+
+    # sobel_combined_imgs, sobel_combined_labels = laneDetector.test_sobel_filter(laneDetector.combine_sobel, x_dir=None, angle=True)
+    # show_image_list(sobel_combined_imgs, sobel_combined_labels, "Sobel Combined masks", cols=3, fig_size=(10, 10), show_ticks=False)
+    
+    combined_bin, combined_bin_labels = laneDetector.combine_bin()
+    show_image_list(combined_bin, combined_bin_labels, "Color And Binary Combined Gradient And HLS (S) Theshold", fig_size=(10, 10), show_ticks=False)

@@ -32,6 +32,7 @@ class LaneDetector():
         self.sobel_x_best = self.abs_sobel(kernel_size=15, threshold=(20, 120))
         self.sobel_y_best = self.abs_sobel(x_dir=False, kernel_size=15, threshold=(20, 120))
         self.sobel_xy_best = self.mag_sobel(kernel_size=15, threshold=(80, 200))
+        self.sobel_combined_best = self.combine_sobel(kernel_size=15, threshold=(np.pi/4, np.pi/2))
 
     # show corners in calibration image
     def show_corners_on_chess_board(self, n=2):
@@ -167,9 +168,29 @@ class LaneDetector():
 
         return sobel_xy_bin
 
-    def test_sobel_filter(self, callback, x_dir=True):
+    def dir_sobel(self, kernel_size=3, threshold=(0, np.pi/2)):
+        sobel_x_abs = np.absolute(cv2.Sobel(self.undist_test_img_gray, cv2.CV_64F, 1, 0, ksize=kernel_size))
+        sobel_y_abs = np.absolute(cv2.Sobel(self.undist_test_img_gray, cv2.CV_64F, 0, 1, ksize=kernel_size))
+
+        dir_sobel_xy = np.arctan2(sobel_x_abs, sobel_y_abs)
+
+        bin_output = np.zeros_like(dir_sobel_xy)
+        bin_output[(dir_sobel_xy >= threshold[0]) & (dir_sobel_xy <= threshold[1])] = 1
+
+        return bin_output
+    
+    def combine_sobel(self, kernel_size=3, threshold=(0, np.pi/2)):
+        sobel_xy_dir = self.dir_sobel(kernel_size=kernel_size, threshold=threshold)
+        combined = np.zeros_like(sobel_xy_dir)
+
+        combined[(self.sobel_x_best == 1) | (self.sobel_y_best == 1) & (self.sobel_xy_best == 1) & (sobel_xy_dir == 1)] = 1
+
+        return combined
+
+    def test_sobel_filter(self, callback, x_dir=True, angle=False):
         kernel_sizes = [3, 7, 11, 15]
-        thresholds = [(20, 120), (50, 150), (80, 200)]
+        thresholds = [(0, np.pi/4), (np.pi/4, np.pi/2), (np.pi/3, np.pi/2)] if angle else [(20, 120), (50, 150), (80, 200)]
+             
         sobel_imgs = []
         sobel_labels = []
         for k in kernel_sizes:
@@ -186,4 +207,14 @@ class LaneDetector():
         
         return np.asarray(sobel_imgs), np.asarray(sobel_labels)
 
-    
+    def combine_bin(self):
+        color_bin = np.dstack((np.zeros_like(self.sobel_combined_best), self.sobel_combined_best, self.hls_white_yellow_img)) * 255
+        color_bin = color_bin.astype(np.uint8)
+
+        combined_bin = np.zeros_like(self.hls_white_yellow_img)
+        combined_bin[(self.sobel_combined_best == 1) | (self.hls_white_yellow_img == 1)] = 1
+
+        combined_bin = [[color_bin, combined_bin]]
+        combined_bin_labels = np.asarray([["Stacked Thresholds", "Combined Color And Gradient Masks"]])
+
+        return combined_bin, combined_bin_labels
