@@ -33,6 +33,29 @@ class LaneDetector():
         self.sobel_y_best = self.abs_sobel(x_dir=False, kernel_size=15, threshold=(20, 120))
         self.sobel_xy_best = self.mag_sobel(kernel_size=15, threshold=(80, 200))
         self.sobel_combined_best = self.combine_sobel(kernel_size=15, threshold=(np.pi/4, np.pi/2))
+        
+        # define the region of interest (ROI)
+        bottom_px, right_px = (self.undist_test_img.shape[0] - 1, self.undist_test_img.shape[1] - 1)
+
+        size = {'bottom': {'left': 230, 'right': 150},
+                'top': {'left': 625, 'right': 560},
+                'height': 280}
+        gap = 30
+
+        self.roi = np.array([
+            [size['bottom']['left'], bottom_px], 
+            [size['top']['left'], bottom_px - size['height']], 
+            [right_px-size['top']['right'], bottom_px - size['height']],
+            [right_px-size['bottom']['right'], bottom_px]], np.int32)
+        
+        self.warp_dst = np.array([
+            [size['bottom']['left'] - gap, bottom_px],
+            [size['bottom']['left'] - gap, 0],
+            [right_px - size['bottom']['right'] + gap, 0],
+            [right_px - size['bottom']['right'] + gap, bottom_px]], np.float32)
+        
+        self.masked_roi_test_img = self.mask_roi()
+        self.perspective_test_img = self.perspective_transform(self.undist_test_img, self.roi.astype(np.float32), self.warp_dst)
 
     # show corners in calibration image
     def show_corners_on_chess_board(self, n=2):
@@ -218,3 +241,22 @@ class LaneDetector():
         combined_bin_labels = np.asarray([["Stacked Thresholds", "Combined Color And Gradient Masks"]])
 
         return combined_bin, combined_bin_labels
+
+    def mask_roi(self):
+        mask_roi = np.copy(self.undist_test_img)
+        
+        cv2.polylines(mask_roi, [self.roi], True, (0, 255, 0), 10)
+
+        return mask_roi
+    
+    def compute_perspective_transform_matrices(self, src, dst):
+        M = cv2.getPerspectiveTransform(src, dst)
+        M_inv = cv2. getPerspectiveTransform(dst, src)
+
+        return (M, M_inv)
+    
+    def perspective_transform(self, img, src, dst):
+        M = cv2.getPerspectiveTransform(src, dst)
+        img_size = (img.shape[1], img.shape[0])
+        warped_img = cv2.warpPerspective(img, M, img_size, flags=cv2.INTER_LINEAR)
+        return warped_img

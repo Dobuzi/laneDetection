@@ -50,5 +50,9 @@ if __name__ == '__main__':
     # sobel_combined_imgs, sobel_combined_labels = laneDetector.test_sobel_filter(laneDetector.combine_sobel, x_dir=None, angle=True)
     # show_image_list(sobel_combined_imgs, sobel_combined_labels, "Sobel Combined masks", cols=3, fig_size=(10, 10), show_ticks=False)
     
-    combined_bin, combined_bin_labels = laneDetector.combine_bin()
-    show_image_list(combined_bin, combined_bin_labels, "Color And Binary Combined Gradient And HLS (S) Theshold", fig_size=(10, 10), show_ticks=False)
+    # combined_bin, combined_bin_labels = laneDetector.combine_bin()
+    # show_image_list(combined_bin, combined_bin_labels, "Color And Binary Combined Gradient And HLS (S) Theshold", fig_size=(10, 10), show_ticks=False)
+
+    plt.axis('off')
+    plt.imshow(laneDetector.perspective_test_img)
+    plt.show()
