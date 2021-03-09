@@ -1,5 +1,5 @@
 from utils import *
-from LaneDetector import LaneDetector
+from LaneDetector_playground import LaneDetector
 import matplotlib.pyplot as plt
 import numpy as np
 
