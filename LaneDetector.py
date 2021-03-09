@@ -29,33 +29,41 @@ class LaneDetector():
         self.hls_white_yellow_img = self.compute_hls_white_yellow_binary(self.undist_test_img)
 
         self.undist_test_img_gray = self.to_lab(self.undist_test_img)[:,:,0]
-        self.sobel_x_best = self.abs_sobel(kernel_size=15, threshold=(20, 120))
-        self.sobel_y_best = self.abs_sobel(x_dir=False, kernel_size=15, threshold=(20, 120))
-        self.sobel_xy_best = self.mag_sobel(kernel_size=15, threshold=(80, 200))
-        self.sobel_combined_best = self.combine_sobel(kernel_size=15, threshold=(np.pi/4, np.pi/2))
-        
+        self.sobel_x_best = self.abs_sobel(self.undist_test_img, kernel_size=15, threshold=(20, 120))
+        self.sobel_y_best = self.abs_sobel(self.undist_test_img, x_dir=False, kernel_size=15, threshold=(20, 120))
+        self.sobel_xy_best = self.mag_sobel(self.undist_test_img, kernel_size=15, threshold=(80, 200))
+        self.sobel_combined_best = self.combine_sobel(self.undist_test_img, self.sobel_x_best, self.sobel_y_best, self.sobel_xy_best, kernel_size=15, threshold=(np.pi/4, np.pi/2))
+        self.color_bin = self.make_color_bin()
+        self.combined_bin = self.make_combined_bin
+        self.bins = [[self.color_bin, self.combined_bin]]
+        self.bins_labels = np.asarray([["Stacked Thresholds", "Combined Color And Gradient Masks"]])
+
+
         # define the region of interest (ROI)
         bottom_px, right_px = (self.undist_test_img.shape[0] - 1, self.undist_test_img.shape[1] - 1)
 
-        size = {'bottom': {'left': 230, 'right': 150},
-                'top': {'left': 625, 'right': 560},
+        size = {'bottom': {'left': 200, 'right': 1100},
+                'top': {'left': 610, 'right': 680},
                 'height': 280}
-        gap = 30
+        gap = 100
 
         self.roi = np.array([
             [size['bottom']['left'], bottom_px], 
             [size['top']['left'], bottom_px - size['height']], 
-            [right_px-size['top']['right'], bottom_px - size['height']],
-            [right_px-size['bottom']['right'], bottom_px]], np.int32)
+            [size['top']['right'], bottom_px - size['height']],
+            [size['bottom']['right'], bottom_px]], np.int32)
+        
+        self.warp_src = self.roi.astype(np.float32)
         
         self.warp_dst = np.array([
-            [size['bottom']['left'] - gap, bottom_px],
-            [size['bottom']['left'] - gap, 0],
-            [right_px - size['bottom']['right'] + gap, 0],
-            [right_px - size['bottom']['right'] + gap, bottom_px]], np.float32)
-        
-        self.masked_roi_test_img = self.mask_roi()
-        self.perspective_test_img = self.perspective_transform(self.undist_test_img, self.roi.astype(np.float32), self.warp_dst)
+            [size['bottom']['left'], bottom_px],
+            [size['bottom']['left'], 0],
+            [size['bottom']['right'] - gap, 0],
+            [size['bottom']['right'] - gap, bottom_px]], np.float32)
+
+        self.masked_roi_test_img = self.mask_roi(self.undist_test_img)
+        self.perspective_test_img = self.perspective_transform(self.undist_test_img, self.warp_src, self.warp_dst)
+        self.perspective_test_imgs = [self.perspective_transform(img, self.warp_src, self.warp_dst) for img in self.undist_test_imgs]
 
     # show corners in calibration image
     def show_corners_on_chess_board(self, n=2):
@@ -168,8 +176,8 @@ class LaneDetector():
 
         return hls_img_w_y
     
-    def abs_sobel(self, x_dir=True, kernel_size=3, threshold=(0, 255)):
-        sobel = cv2.Sobel(self.undist_test_img_gray, cv2.CV_64F, int(x_dir), int(not x_dir), ksize=kernel_size)
+    def abs_sobel(self, img_gray, x_dir=True, kernel_size=3, threshold=(0, 255)):
+        sobel = cv2.Sobel(img_gray, cv2.CV_64F, int(x_dir), int(not x_dir), ksize=kernel_size)
         
         sobel_abs = np.absolute(sobel)
         sobel_scaled = np.uint8(255 * sobel / np.max(sobel_abs))
@@ -179,9 +187,9 @@ class LaneDetector():
 
         return gradient_mask
     
-    def mag_sobel(self, kernel_size=3, threshold=(0, 255)):
-        sobel_x = cv2.Sobel(self.undist_test_img_gray, cv2.CV_64F, 1, 0, ksize=kernel_size)
-        sobel_y = cv2.Sobel(self.undist_test_img_gray, cv2.CV_64F, 0, 1, ksize=kernel_size)
+    def mag_sobel(self, img_gray, kernel_size=3, threshold=(0, 255)):
+        sobel_x = cv2.Sobel(img_gray, cv2.CV_64F, 1, 0, ksize=kernel_size)
+        sobel_y = cv2.Sobel(img_gray, cv2.CV_64F, 0, 1, ksize=kernel_size)
 
         sobel_xy = np.sqrt(np.square(sobel_x) + np.square(sobel_y))
         scaled_sobel_xy = np.uint8(255 * sobel_xy / np.max(sobel_xy))
@@ -191,9 +199,9 @@ class LaneDetector():
 
         return sobel_xy_bin
 
-    def dir_sobel(self, kernel_size=3, threshold=(0, np.pi/2)):
-        sobel_x_abs = np.absolute(cv2.Sobel(self.undist_test_img_gray, cv2.CV_64F, 1, 0, ksize=kernel_size))
-        sobel_y_abs = np.absolute(cv2.Sobel(self.undist_test_img_gray, cv2.CV_64F, 0, 1, ksize=kernel_size))
+    def dir_sobel(self, img_gray, kernel_size=3, threshold=(0, np.pi/2)):
+        sobel_x_abs = np.absolute(cv2.Sobel(img_gray, cv2.CV_64F, 1, 0, ksize=kernel_size))
+        sobel_y_abs = np.absolute(cv2.Sobel(img_gray, cv2.CV_64F, 0, 1, ksize=kernel_size))
 
         dir_sobel_xy = np.arctan2(sobel_x_abs, sobel_y_abs)
 
@@ -202,11 +210,11 @@ class LaneDetector():
 
         return bin_output
     
-    def combine_sobel(self, kernel_size=3, threshold=(0, np.pi/2)):
-        sobel_xy_dir = self.dir_sobel(kernel_size=kernel_size, threshold=threshold)
+    def combine_sobel(self, img_gray, sobel_x, sobel_y, sobel_xy, kernel_size=3, threshold=(0, np.pi/2)):
+        sobel_xy_dir = self.dir_sobel(img_gray, kernel_size=kernel_size, threshold=threshold)
         combined = np.zeros_like(sobel_xy_dir)
 
-        combined[(self.sobel_x_best == 1) | (self.sobel_y_best == 1) & (self.sobel_xy_best == 1) & (sobel_xy_dir == 1)] = 1
+        combined[(sobel_x == 1) | (sobel_y == 1) & (sobel_xy == 1) & (sobel_xy_dir == 1)] = 1
 
         return combined
 
@@ -230,20 +238,20 @@ class LaneDetector():
         
         return np.asarray(sobel_imgs), np.asarray(sobel_labels)
 
-    def combine_bin(self):
+    def make_color_bin(self):
         color_bin = np.dstack((np.zeros_like(self.sobel_combined_best), self.sobel_combined_best, self.hls_white_yellow_img)) * 255
         color_bin = color_bin.astype(np.uint8)
 
+        return color_bin
+
+    def make_combined_bin(self):
         combined_bin = np.zeros_like(self.hls_white_yellow_img)
         combined_bin[(self.sobel_combined_best == 1) | (self.hls_white_yellow_img == 1)] = 1
 
-        combined_bin = [[color_bin, combined_bin]]
-        combined_bin_labels = np.asarray([["Stacked Thresholds", "Combined Color And Gradient Masks"]])
+        return combined_bin
 
-        return combined_bin, combined_bin_labels
-
-    def mask_roi(self):
-        mask_roi = np.copy(self.undist_test_img)
+    def mask_roi(self, img):
+        mask_roi = np.copy(img)
         
         cv2.polylines(mask_roi, [self.roi], True, (0, 255, 0), 10)
 
@@ -260,3 +268,18 @@ class LaneDetector():
         img_size = (img.shape[1], img.shape[0])
         warped_img = cv2.warpPerspective(img, M, img_size, flags=cv2.INTER_LINEAR)
         return warped_img
+
+    def get_combined_binary_masked_img(self, img):
+        img_gray = self.to_lab(img)[:, :, 0]
+        sobel_x = self.abs_sobel(img_gray, kernel_size=15, threshold=(20, 120))
+        sobel_y = self.abs_sobel(img_gray, x_dir=False, kernel_size=15, threshold=(20, 120))
+        sobel_xy = self.mag_sobel(img_gray, kernel_size=15, threshold=(80, 200))
+        
+        sobel_combined_dir = self.combine_sobel(img_gray, sobel_x, sobel_y, sobel_xy, kernel_size=15, threshold=(np.pi/4, np.pi/2))
+
+        hls_w_y = self.compute_hls_white_yellow_binary(img)
+
+        combined_bin = np.zeros_like(hls_w_y)
+        combined_bin[(sobel_combined_dir == 1) | (hls_w_y == 1)] = 1
+
+        return combined_bin
