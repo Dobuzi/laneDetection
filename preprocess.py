@@ -18,7 +18,7 @@ def load_image(path, to_rgb=True):
     img = cv2.imread(path)
     return img if not to_rgb else cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-def find_image_object_points(self, calibration_dir = "camera_cal", cx=9, cy=6):
+def find_image_object_points(calibration_dir = "camera_cal", cx=9, cy=6):
     cal_imgs_paths = glob.glob(calibration_dir + "/*.jpg")
 
     obj_pts = []
@@ -119,3 +119,27 @@ def get_combined_binary_masked_img(img):
     combined_bin[(sobel_combined_dir == 1) | (hls_w_y == 1)] = 1
 
     return combined_bin
+
+def get_warp_src_dst(undsitorted_img):
+    bottom_px, right_px = (undsitorted_img.shape[0] - 1, undsitorted_img.shape[1] - 1)
+
+    size = {'bottom': {'left': 200, 'right': 1100},
+            'top': {'left': 610, 'right': 680},
+            'height': 280}
+    gap = 100
+
+    roi = np.array([
+        [size['bottom']['left'], bottom_px], 
+        [size['top']['left'], bottom_px - size['height']], 
+        [size['top']['right'], bottom_px - size['height']],
+        [size['bottom']['right'], bottom_px]], np.int32)
+    
+    warp_src = roi.astype(np.float32)
+    
+    warp_dst = np.array([
+        [size['bottom']['left'], bottom_px],
+        [size['bottom']['left'], 0],
+        [size['bottom']['right'] - gap, 0],
+        [size['bottom']['right'] - gap, bottom_px]], np.float32)
+    
+    return warp_src, warp_dst

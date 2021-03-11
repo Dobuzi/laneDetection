@@ -53,7 +53,12 @@ class LaneDetector():
         undist_img_perspective = cv2.warpPerspective(undist_img, self.M, img_size, flags=cv2.INTER_LINEAR)
         masked_img_perspective = cv2.warpPerspective(masked_img, self.M, img_size, flags=cv2.INTER_LINEAR)
 
-    def compute_lanes(self, warped_img):
+        left_line, right_line = self.compute_lanes(masked_img_perspective)
+        left_radius, right_radius, center_offset = self.compute_lane_curvature(left_line, right_line)
+
+        print(left_line.polynomial_coeff, right_line.polynomial_coeff)
+
+    def compute_lanes(self, warped_img, threshold=.85):
         hist = np.sum(warped_img[warped_img.shape[0]//2:,:], axis=0)
         mid_point = np.int(hist.shape[0]//2)
         left_point = np.argmax(hist[:mid_point])
@@ -62,6 +67,8 @@ class LaneDetector():
         window_height = np.int(warped_img.shape[0]//self.sliding_windows_per_line)
         
         nonzero = warped_img.nonzero()
+        nonzero_x, nonzero_y = np.array(nonzero[1]), np.array(nonzero[0])
+        nonzero_rate = .0
         
         margin = self.sliding_window_half_width
         min_px = self.sliding_window_recenter_threshold
@@ -70,10 +77,99 @@ class LaneDetector():
 
         left_line, right_line = Line(), Line()
 
-        left_coeff, right_coeff = self.prev_left_line.polynomial_coeff, self.prev_right_line.polynomial_coeff
-        left_quadratic, right_quadratic = make_quadratic(left_coeff, nonzero[0]), make_quadratic(right_coeff, nonzero[0])
-
         if self.prev_left_line is not None and self.prev_right_line is not None:
-            left_line_indices = (nonzero[1] > (left_quadratic - margin)) & (nonzero[1] < (left_quadratic + margin))
-            right_line_indices = (nonzero[1] > (right_quadratic - margin)) & (nonzero[1] < (right_quadratic + margin))
+            left_quadratic = make_quadratic(self.prev_left_line.polynomial_coeff, nonzero_y)
+            right_quadratic = make_quadratic(self.prev_right_line.polynomial_coeff, nonzero_y)
+
+            left_line_indices = (nonzero_x > (left_quadratic - margin)) & (nonzero_x < (left_quadratic + margin))
+            right_line_indices = (nonzero_x > (right_quadratic - margin)) & (nonzero_x < (right_quadratic + margin))
+
+            nonzero_rate = (len(left_line_indices) + len(right_line_indices)) / len(nonzero_y)
+            print(f'[Prev_lane] Found rate: {nonzero_rate}')
+
+        if nonzero_rate < threshold:
+            print(f"Non-zeros ({nonzero_rate}) are under threshold. Let's slide window.")
+            left_line_indices, right_line_indices = [], []
+            
+            for i in range(self.sliding_windows_per_line):
+                window_y = (warped_img.shape[0] - (i+1) * window_height, warped_img.shape[0] - i * window_height)
+                window_x_left = (left_point - margin, left_point + margin)
+                window_x_right = (right_point - margin, right_point + margin)
+
+                left_line.windows.append([(window_x_left[0], window_y[0]), (window_x_left[1], window_y[1])])
+                right_line.windows.append([(window_x_right[0], window_y[0]), (window_x_right[1], window_y[1])])
+
+                left_line_idx = ((nonzero_y >= window_y[0]) & (nonzero_y < window_y[1]) & \
+                                 (nonzero_x >= window_x_left[0]) & (nonzero_x < window_x_left[1])).nonzero()[0]
+                right_line_idx = ((nonzero_y >= window_y[0]) & (nonzero_y < window_y[1]) & \
+                                 (nonzero_x >= window_x_right[0]) & (nonzero_x < window_x_right[1])).nonzero()[0]
+                
+                left_line_indices.append(left_line_idx)
+                right_line_indices.append(right_line_idx)
+
+                if len(left_line_idx) > min_px:
+                    left_point = np.int(np.mean(nonzero_x[left_line_idx]))
+                if len(right_line_idx) > min_px:
+                    right_point = np.int(np.mean(nonzero_x[right_line_idx]))
+            
+            left_line_indices = np.concatenate(left_line_indices)
+            right_line_indices = np.concatenate(right_line_indices)
+
+            nonzero_rate = (len(left_line_indices) + len(right_line_indices)) / len(nonzero_y)
+            print(f'[Sliding windows] Found rate: {nonzero_rate}')
         
+        left = (nonzero_x[left_line_indices], nonzero_y[left_line_indices])
+        right = (nonzero_x[right_line_indices], nonzero_y[right_line_indices])
+        
+        left_coeff = np.polyfit(left[1], left[0], 2)
+        right_coeff = np.polyfit(right[1], right[0], 2)
+
+        left_line.polynomial_coeff = left_coeff
+        right_line.polynomial_coeff = right_coeff
+
+        if not self.prev_left_lines.append(left_line):
+            left_coeff = self.prev_left_lines.get_smoothed_polynomial()
+            left_line.polynomial_coeff = left_coeff
+            self.prev_left_lines.append(left_line, force=True)
+            print(f'revised left poly line {left_coeff}')
+        
+        if not self.prev_right_lines.append(right_line):
+            right_coeff = self.prev_right_lines.get_smoothed_polynomial()
+            right_line.polynomial_coeff = right_coeff
+            self.prev_right_lines.append(right_line, force=True)
+            print(f'revised right poly line {right_coeff}')
+        
+        plot_y = np.linspace(0, warped_img.shape[0]-1, warped_img.shape[0])
+        left_fit_x = make_quadratic(left_coeff, plot_y)
+        right_fit_x = make_quadratic(right_coeff, plot_y)
+
+        left_line.line_fit_x = left_fit_x
+        left_line.non_zero_x = left[0]
+        left_line.non_zero_y = left[1]
+
+        right_line.line_fit_x = right_fit_x
+        right_line.non_zero_x = right[0]
+        right_line.non_zero_y = right[1]
+
+        return (left_line, right_line)
+
+    def compute_lane_curvature(self, left_line, right_line):
+        plot_y = self.plot_y
+        y_eval = np.max(plot_y)
+
+        left_x = left_line.line_fit_x
+        right_x = right_line.line_fit_x
+
+        left_scaled = np.polyfit(plot_y * self.y_m_per_px, left_x * self.x_m_per_px, 2)
+        right_scaled = np.polyfit(plot_y * self.y_m_per_px, right_x * self.x_m_per_px, 2)
+
+        left_radius = ((1 + (2 * left_scaled[0] * y_eval * self.y_m_per_px + left_scaled[1])**2)**1.5) / np.abs(2 * left_scaled[0])
+        right_radius = ((1 + (2 * right_scaled[0] * y_eval * self.y_m_per_px + right_scaled[1])**2)**1.5) / np.abs(2 * right_scaled[0])
+
+        left_coeff = left_line.polynomial_coeff
+        right_coeff = right_line.polynomial_coeff
+
+        center_offset_img_space = (make_quadratic(left_coeff, y_eval) + make_quadratic(right_coeff, y_eval)) / 2 - self.lane_center_px_perspective
+        center_offset_real_world_m = center_offset_img_space * self.x_m_per_px
+
+        return left_radius, right_radius, center_offset_real_world_m
