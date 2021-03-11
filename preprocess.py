@@ -123,23 +123,24 @@ def get_combined_binary_masked_img(img):
 def get_warp_src_dst(undsitorted_img):
     bottom_px, right_px = (undsitorted_img.shape[0] - 1, undsitorted_img.shape[1] - 1)
 
-    size = {'bottom': {'left': 200, 'right': 1100},
-            'top': {'left': 610, 'right': 680},
-            'height': 280}
-    gap = 100
+    src_size = {'bottom': {'left': 210, 'right': 1110},
+                'top': {'left': 595, 'right': 690},
+                'height': 280}
+    
+    dst_size = {'left': 200, 'right': 1000}
 
     roi = np.array([
-        [size['bottom']['left'], bottom_px], 
-        [size['top']['left'], bottom_px - size['height']], 
-        [size['top']['right'], bottom_px - size['height']],
-        [size['bottom']['right'], bottom_px]], np.int32)
+        [src_size['bottom']['left'], bottom_px], 
+        [src_size['top']['left'], bottom_px - src_size['height']], 
+        [src_size['top']['right'], bottom_px - src_size['height']],
+        [src_size['bottom']['right'], bottom_px]], np.int32)
     
     warp_src = roi.astype(np.float32)
     
     warp_dst = np.array([
-        [size['bottom']['left'], bottom_px],
-        [size['bottom']['left'], 0],
-        [size['bottom']['right'] - gap, 0],
-        [size['bottom']['right'] - gap, bottom_px]], np.float32)
+        [dst_size['left'], bottom_px],
+        [dst_size['left'], 0],
+        [dst_size['right'], 0],
+        [dst_size['right'], bottom_px]], np.float32)
     
     return warp_src, warp_dst

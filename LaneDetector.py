@@ -3,6 +3,7 @@ from Line import *
 from LineHistory import *
 import preprocess
 from utils import *
+import matplotlib.pyplot as plt
 
 class LaneDetector():
     def __init__(self, obj_pts, img_pts,
@@ -56,7 +57,10 @@ class LaneDetector():
         left_line, right_line = self.compute_lanes(masked_img_perspective)
         left_radius, right_radius, center_offset = self.compute_lane_curvature(left_line, right_line)
 
-        print(left_line.polynomial_coeff, right_line.polynomial_coeff)
+        img_w_lines = self.draw_lines(masked_img_perspective, left_line, right_line)
+        # plt.imshow(img_w_lines)
+        # plt.show()
+        
 
     def compute_lanes(self, warped_img, threshold=.85):
         hist = np.sum(warped_img[warped_img.shape[0]//2:,:], axis=0)
@@ -173,3 +177,20 @@ class LaneDetector():
         center_offset_real_world_m = center_offset_img_space * self.x_m_per_px
 
         return left_radius, right_radius, center_offset_real_world_m
+    
+    def draw_lines(self, warped_img, left_line, right_line):
+        out_img = np.dstack((warped_img, warped_img, warped_img)) * 255
+
+        plot_y = np.linspace(0, warped_img.shape[0]-1, warped_img.shape[0])
+        
+        left_pts = np.dstack((left_line.line_fit_x, plot_y)).astype(np.int32)
+        right_pts = np.dstack((right_line.line_fit_x, plot_y)).astype(np.int32)
+        
+        cv2.polylines(out_img, left_pts, False, (255, 0, 0), 5)
+        cv2.polylines(out_img, right_pts, False, (0, 0, 255), 5)
+
+        for (left_bottom, left_top), (right_bottom, right_top) in zip(left_line.windows, right_line.windows):
+            cv2.rectangle(out_img, left_bottom, left_top, (0, 255, 0), 3)
+            cv2.rectangle(out_img, right_bottom, right_top, (0, 255, 0), 3)
+        
+        return out_img

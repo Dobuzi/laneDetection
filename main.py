@@ -5,7 +5,7 @@ from LaneDetector import *
 if __name__ == '__main__':
     obj_pts, img_pts = find_image_object_points()
 
-    n_sample = 0
+    n_sample = 6
     test_imgs_dir = "test_images"
     test_imgs_paths = glob.glob(test_imgs_dir + '/*.jpg')
     test_imgs = [load_image(img_path) for img_path in test_imgs_paths]
