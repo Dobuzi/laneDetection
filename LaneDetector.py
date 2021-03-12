@@ -57,10 +57,35 @@ class LaneDetector():
         left_line, right_line = self.compute_lanes(masked_img_perspective)
         left_radius, right_radius, center_offset = self.compute_lane_curvature(left_line, right_line)
 
-        img_w_lines = self.draw_lines(masked_img_perspective, left_line, right_line)
-        # plt.imshow(img_w_lines)
+        img_lines = self.draw_lines(masked_img_perspective, left_line, right_line)
+        # plt.imshow(img_lines)
         # plt.show()
-        
+
+        img_regions = self.draw_lines_region(masked_img_perspective, left_line, right_line)
+        # plt.imshow(img_regions)
+        # plt.show()
+
+        img_lane = self.draw_lane(masked_img_perspective, undist_img, left_line, right_line)
+        # plt.imshow(img_lane)
+        # plt.show()
+
+        img_hotspot = self.draw_lines_hotspot(masked_img_perspective, left_line, right_line)
+        # plt.imshow(img_hotspot)
+        # plt.show()
+
+        combined_img = self.combine_images(img_lane, img_lines, img_regions, img_hotspot, undist_img_perspective)
+        # plt.imshow(combined_img)
+        # plt.show()
+
+        out_img = self.write_lane_curvature(combined_img, left_radius, right_radius, center_offset)
+        plt.imshow(out_img)
+        plt.show()
+
+        self.total_img_count += 1
+        self.prev_left_line = left_line
+        self.prev_right_line = right_line
+
+        return out_img
 
     def compute_lanes(self, warped_img, threshold=.85):
         hist = np.sum(warped_img[warped_img.shape[0]//2:,:], axis=0)
@@ -194,3 +219,88 @@ class LaneDetector():
             cv2.rectangle(out_img, right_bottom, right_top, (0, 255, 0), 3)
         
         return out_img
+
+    def draw_lines_region(self, warped_img, left_line, right_line):
+        margin = self.sliding_window_half_width
+        plot_y = np.linspace(0, warped_img.shape[0]-1, warped_img.shape[0])
+
+        left_1 = np.array([list(zip(left_line.line_fit_x - margin, plot_y))])
+        left_2 = np.array([list(zip(left_line.line_fit_x + margin, plot_y))[::-1]])
+        
+        left_pts = np.hstack((left_1, left_2))
+        
+        right_1 = np.array([list(zip(right_line.line_fit_x - margin, plot_y))])
+        right_2 = np.array([list(zip(right_line.line_fit_x + margin, plot_y))[::-1]])
+        
+        right_pts = np.hstack((right_1, right_2))
+
+        out_img = np.dstack((warped_img, warped_img, warped_img)) * 255
+
+        cv2.fillPoly(out_img, np.int_([left_pts]), (0, 255, 0))
+        cv2.fillPoly(out_img, np.int_([right_pts]), (0, 255, 0))
+
+        return out_img
+
+    def draw_lane(self, warped_img, undist_img, left_line, right_line):
+        warp_zero = np.zeros_like(warped_img).astype(np.uint8)
+        color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
+
+        plot_y = np.linspace(0, warped_img.shape[0]-1, warped_img.shape[0])
+
+        left_pts = np.array([list(zip(left_line.line_fit_x, plot_y))])
+        right_pts = np.array([list(zip(right_line.line_fit_x, plot_y))[::-1]])
+
+        pts = np.hstack((left_pts, right_pts))
+
+        cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
+
+        new_warp = cv2.warpPerspective(color_warp, self.M_inv, (undist_img.shape[1], undist_img.shape[0]))
+
+        out_img = cv2.addWeighted(undist_img, 1, new_warp, .3, 0)
+
+        return out_img
+
+    def draw_lines_hotspot(self, warped_img, left_line, right_line):
+        out_img = np.dstack((warped_img, warped_img, warped_img)) * 255
+
+        out_img[left_line.non_zero_y, left_line.non_zero_x] = [255, 255, 0]
+        out_img[right_line.non_zero_y, right_line.non_zero_x] = [0, 0, 255]
+
+        return out_img
+    
+    def combine_images(self, img_lane, img_lines, img_regions, img_hotspot, undist_img_perspective):
+        small_size = self.small_img_size
+        x_offset, y_offset = self.small_img_x_offset, self.small_img_y_offset
+
+        small_img_lines = cv2.resize(img_lines, small_size)
+        small_img_regions = cv2.resize(img_regions, small_size)
+        small_img_hotspot = cv2.resize(img_hotspot, small_size)
+        small_img_perspective = cv2.resize(undist_img_perspective, small_size)
+
+        img_lane[y_offset: y_offset + small_size[1], x_offset: x_offset + small_size[0]] = small_img_lines
+
+        x_offset += self.small_img_x_offset + small_size[0]
+        img_lane[y_offset: y_offset + small_size[1], x_offset: x_offset + small_size[0]] = small_img_regions
+
+        x_offset += self.small_img_x_offset + small_size[0]
+        img_lane[y_offset: y_offset + small_size[1], x_offset: x_offset + small_size[0]] = small_img_hotspot
+
+        x_offset += self.small_img_x_offset + small_size[0]
+        img_lane[y_offset: y_offset + small_size[1], x_offset: x_offset + small_size[0]] = small_img_perspective
+
+        return img_lane
+    
+    def write_lane_curvature(self, img, left_radius, right_radius, center_offset):
+        offset_x = self.small_img_x_offset
+        offset_y = self.small_img_size[1] + self.small_img_y_offset * 5
+        gap = self.small_img_y_offset * 5
+
+        template = "{0:17}{1:17}{2:17}"
+        header = template.format("Left R", "Right R", "Center Alignment")
+        values = template.format(f'{left_radius:.1f}m', f'{right_radius:.1f}m',f'{center_offset:.3f}m')
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(img, header, (offset_x, offset_y), font, 1, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(img, values, (offset_x, offset_y + gap), font, 1, (255, 255, 255), 1, cv2.LINE_AA)
+
+        return img
