@@ -78,8 +78,8 @@ class LaneDetector():
         # plt.show()
 
         out_img = self.write_lane_curvature(combined_img, left_radius, right_radius, center_offset)
-        plt.imshow(out_img)
-        plt.show()
+        # plt.imshow(out_img)
+        # plt.show()
 
         self.total_img_count += 1
         self.prev_left_line = left_line

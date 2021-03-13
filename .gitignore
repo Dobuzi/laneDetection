@@ -2,6 +2,7 @@
 camera_cal/**
 examples/**
 media/**
+input_videos/**
 output_images/**
 output_videos/**
 test_images/**
